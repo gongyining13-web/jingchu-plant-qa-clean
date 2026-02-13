@@ -1,5 +1,4 @@
-﻿# streamlit_app.py（恢复 Groq 问答版）
-import streamlit as st
+﻿import streamlit as st
 import os
 from groq import Groq
 
@@ -28,7 +27,7 @@ if st.button("获取回答", type="primary"):
     if user_question:
         with st.spinner("🤔 正在生成回答..."):
             try:
-                # 调用 Groq
+                # 调用 Groq，使用新模型
                 chat_completion = client.chat.completions.create(
                     messages=[
                         {
@@ -40,7 +39,7 @@ if st.button("获取回答", type="primary"):
                             "content": user_question
                         }
                     ],
-                    model="llama3-8b-8192",
+                    model="llama-3.1-8b-instant",  # 已替换为可用模型
                 )
                 answer = chat_completion.choices[0].message.content
                 st.markdown("### 📝 回答")
