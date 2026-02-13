@@ -24,24 +24,38 @@ ALIAS_MAP = {
 }
 
 # ------------------------------------------------------------
-# 2. 加载 Excel 数据（缓存）
+# 2. 加载 Excel 数据（自动定位表头行，彻底解决列名识别问题）
 # ------------------------------------------------------------
 @st.cache_data
 def load_plant_data():
-    """✅ 关键修复：header=2 跳过前两行，第三行才是真正的表头"""
+    """自动查找包含“植物中文名”的行作为表头，无论前面有多少空行/注释行"""
     try:
-        # 重点：header=2 表示将 Excel 的第三行作为列名（行号从0开始）
-        df = pd.read_excel(
-            "data/荆楚植物文化图谱植物数据.xlsx",
-            engine="openpyxl",
-            header=2
-        )
-
+        excel_path = "data/荆楚植物文化图谱植物数据.xlsx"
+        
+        # ----- 第一步：读取前20行，定位表头行 -----
+        df_preview = pd.read_excel(excel_path, engine="openpyxl", header=None, nrows=20)
+        header_row_idx = None
+        for idx, row in df_preview.iterrows():
+            # 检查这一行是否包含“植物中文名”（转成字符串后判断）
+            if row.astype(str).str.contains("植物中文名").any():
+                header_row_idx = idx
+                break
+        
+        if header_row_idx is None:
+            st.error("❌ 无法在Excel中找到表头行（必须包含'植物中文名'）")
+            st.stop()
+        
+        # ----- 第二步：以找到的行作为表头，重新读取完整数据 -----
+        df = pd.read_excel(excel_path, engine="openpyxl", header=header_row_idx)
+        
+        # 清理列名两端的空白字符（有时会有换行符或空格）
+        df.columns = df.columns.str.strip()
+        
         # 过滤完全空的行
         df = df.dropna(how="all")
         df = df.fillna("无")
-
-        # 列名重映射（你的 Excel 表头就是中文名，直接使用）
+        
+        # ----- 第三步：重映射为标准字段名 -----
         df["name"]            = df["植物中文名"]
         df["latin"]           = df["植物拉丁学名"]
         df["family"]          = df["植物科名"]
@@ -52,17 +66,18 @@ def load_plant_data():
         df["medicinal_value"] = df["药用价值"]
         df["traditional_use"] = df["传统实用价值"]
         df["ecological_significance"] = df["生态意义"]
-
-        # 转换为字典列表，只保留有效植物
+        
+        # 转换为字典列表，只保留有效植物（名称不为“无”）
         plant_list = [p for p in df.to_dict("records") if p["name"] != "无"]
+        
         st.success(f"✅ 成功加载 {len(plant_list)} 种荆楚植物数据")
         return plant_list
-
+        
     except FileNotFoundError:
         st.error("⚠️ 未找到Excel文件！请确认 data 文件夹下有「荆楚植物文化图谱植物数据.xlsx」")
         st.stop()
     except Exception as e:
-        st.error(f"❌ 数据加载失败：{str(e)[:100]}")
+        st.error(f"❌ 数据加载失败：{str(e)[:200]}")
         st.stop()
 
 # ------------------------------------------------------------
@@ -81,7 +96,7 @@ def init_groq_client():
         st.stop()
 
 # ------------------------------------------------------------
-# 4. 全局数据加载（必须放在函数定义之后，但要在界面渲染前执行）
+# 4. 全局数据加载（必须在函数定义之后立即执行）
 # ------------------------------------------------------------
 plant_data = load_plant_data()
 groq_client = init_groq_client()
@@ -91,10 +106,9 @@ groq_client = init_groq_client()
 # ------------------------------------------------------------
 def get_plant_detail(plant_name):
     """根据输入的植物名（含别名）返回对应的植物字典"""
-    # 先尝试用别名映射
     target_name = ALIAS_MAP.get(plant_name.strip(), plant_name.strip())
     for plant in plant_data:
-        # 精确匹配，或主名包含在植物名称中（例如“荷（莲）”可被“荷”匹配）
+        # 精确匹配，或主名包含在植物名称中（如“荷”匹配“荷（莲）”）
         if plant["name"] == target_name or target_name in plant["name"]:
             return plant
     # 未找到则返回第一个（兜底）
@@ -106,6 +120,7 @@ def get_plant_detail(plant_name):
 def generate_intelligent_answer(question):
     try:
         all_plant_names = [p["name"] for p in plant_data]
+        
         # 识别问题中涉及的植物（直接匹配主名或别名）
         relevant_plants = []
         for p_name in all_plant_names:
@@ -114,7 +129,8 @@ def generate_intelligent_answer(question):
         for alias, real_name in ALIAS_MAP.items():
             if alias in question and real_name not in relevant_plants:
                 relevant_plants.append(real_name)
-
+        
+        # 构建上下文
         context = "### 荆楚植物参考数据：\n"
         if relevant_plants:
             for p_name in relevant_plants:
@@ -127,7 +143,7 @@ def generate_intelligent_answer(question):
 """
         else:
             context += "未匹配到具体植物，将基于荆楚植物文化常识回答。"
-
+        
         prompt = f"""
 你是荆楚植物文化研究员，仅围绕湖北地域植物作答：
 1. 有数据时100%基于数据，无数据时基于常识，不编造；
@@ -140,7 +156,7 @@ def generate_intelligent_answer(question):
 """
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",   # Groq 上可用的模型
+            model="llama-3.1-8b-instant",   # Groq 免费模型
             temperature=0.1,
             max_tokens=200
         )
