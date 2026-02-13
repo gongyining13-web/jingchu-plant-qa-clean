@@ -14,6 +14,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ---------- 注入 PWA Manifest（删除 apple-touch-icon，完全依赖 manifest） ----------
+st.markdown('<link rel="manifest" href="/static/manifest.json">', unsafe_allow_html=True)
+
 # ------------------------------------------------------------
 # 1. 别名映射表（定义在最前面，供多个函数使用）
 # ------------------------------------------------------------
@@ -24,19 +27,18 @@ ALIAS_MAP = {
 }
 
 # ------------------------------------------------------------
-# 2. 加载 Excel 数据（自动定位表头行，彻底解决列名识别问题）
+# 2. 加载 Excel 数据（自动定位表头行）
 # ------------------------------------------------------------
 @st.cache_data
 def load_plant_data():
-    """自动查找包含“植物中文名”的行作为表头，无论前面有多少空行/注释行"""
+    """自动查找包含“植物中文名”的行作为表头"""
     try:
         excel_path = "data/荆楚植物文化图谱植物数据.xlsx"
         
-        # ----- 第一步：读取前20行，定位表头行 -----
+        # 读取前20行，定位表头行
         df_preview = pd.read_excel(excel_path, engine="openpyxl", header=None, nrows=20)
         header_row_idx = None
         for idx, row in df_preview.iterrows():
-            # 检查这一行是否包含“植物中文名”（转成字符串后判断）
             if row.astype(str).str.contains("植物中文名").any():
                 header_row_idx = idx
                 break
@@ -45,17 +47,17 @@ def load_plant_data():
             st.error("❌ 无法在Excel中找到表头行（必须包含'植物中文名'）")
             st.stop()
         
-        # ----- 第二步：以找到的行作为表头，重新读取完整数据 -----
+        # 以找到的行作为表头，重新读取完整数据
         df = pd.read_excel(excel_path, engine="openpyxl", header=header_row_idx)
         
-        # 清理列名两端的空白字符（有时会有换行符或空格）
+        # 清理列名两端的空白字符
         df.columns = df.columns.str.strip()
         
         # 过滤完全空的行
         df = df.dropna(how="all")
         df = df.fillna("无")
         
-        # ----- 第三步：重映射为标准字段名 -----
+        # 重映射为标准字段名
         df["name"]            = df["植物中文名"]
         df["latin"]           = df["植物拉丁学名"]
         df["family"]          = df["植物科名"]
@@ -96,7 +98,7 @@ def init_groq_client():
         st.stop()
 
 # ------------------------------------------------------------
-# 4. 全局数据加载（必须在函数定义之后立即执行）
+# 4. 全局数据加载
 # ------------------------------------------------------------
 plant_data = load_plant_data()
 groq_client = init_groq_client()
@@ -108,10 +110,8 @@ def get_plant_detail(plant_name):
     """根据输入的植物名（含别名）返回对应的植物字典"""
     target_name = ALIAS_MAP.get(plant_name.strip(), plant_name.strip())
     for plant in plant_data:
-        # 精确匹配，或主名包含在植物名称中（如“荷”匹配“荷（莲）”）
         if plant["name"] == target_name or target_name in plant["name"]:
             return plant
-    # 未找到则返回第一个（兜底）
     return plant_data[0] if plant_data else {}
 
 # ------------------------------------------------------------
@@ -121,7 +121,7 @@ def generate_intelligent_answer(question):
     try:
         all_plant_names = [p["name"] for p in plant_data]
         
-        # 识别问题中涉及的植物（直接匹配主名或别名）
+        # 识别问题中涉及的植物
         relevant_plants = []
         for p_name in all_plant_names:
             if p_name in question:
@@ -156,7 +156,7 @@ def generate_intelligent_answer(question):
 """
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",   # Groq 免费模型
+            model="llama-3.1-8b-instant",
             temperature=0.1,
             max_tokens=200
         )
@@ -165,7 +165,7 @@ def generate_intelligent_answer(question):
         return f"💡 问答暂无法响应，错误原因：{str(e)[:80]}"
 
 # ------------------------------------------------------------
-# 7. 页面样式（纯美化，无逻辑改动）
+# 7. 页面样式（纯美化）
 # ------------------------------------------------------------
 st.markdown("""
 <style>
