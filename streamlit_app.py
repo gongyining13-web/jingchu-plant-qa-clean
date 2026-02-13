@@ -87,7 +87,7 @@ def generate_answer(question):
     try:
         # 从问题中提取植物名（匹配50种植物）
         plant_names = [p["name"] for p in plant_data]
-        relevant_plants = [p for p in plant_names if p in question or any(alias in question for alias in alias_map.get(p, []))]
+        relevant_plants = [p for p in plant_names if p in question]
         
         # 构建基于你50种植物数据的提示词（确保回答精准）
         context = ""
@@ -144,18 +144,11 @@ alias_map = {
 }
 
 # ----------------------
-# 5. 页面样式与布局（最终版：修复所有颜色问题）
+# 5. 页面样式与布局（稳定版：避免DOM操作，解决报错）
 # ----------------------
-# 自定义样式美化（彻底修复侧边栏+卡片颜色，确保所有场景清晰）
+# 自定义样式美化（不使用display:none隐藏图标，避免DOM冲突）
 st.markdown("""
 <style>
-    /* 全局重置：强制统一样式，不受Streamlit主题影响 */
-    * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-    }
-
     /* 按钮样式 */
     .stButton>button {
         background-color: #2E8B57 !important;
@@ -224,12 +217,6 @@ st.markdown("""
         color: #2E8B57 !important;
     }
 
-    /* 移除所有问号图标 */
-    [data-testid="stMarkdownContainer"] svg[aria-label="Questionmark"],
-    [data-testid="stTooltipIcon"] {
-        display: none !important;
-    }
-
     /* 输入框样式 */
     .stTextInput>div>div>input {
         height: 3em;
@@ -267,7 +254,7 @@ st.markdown("""
 st.title("🌿 荆楚植物智能问答系统")
 st.markdown("##### 基于你的荆楚植物Excel数据（共50种植物）")
 
-# 侧边栏（最终版：清晰易读）
+# 侧边栏（最终版：清晰易读，移除问号文字）
 with st.sidebar:
     st.markdown("### 🌱 关于系统")
     st.markdown("本系统基于你的荆楚植物文化Excel数据（50种植物）+ 大语言模型，提供精准的植物文化问答服务。")
