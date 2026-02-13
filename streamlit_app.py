@@ -13,19 +13,20 @@ st.set_page_config(
 )
 
 # ----------------------
-# 1. 加载Excel数据（精准匹配你的真实列名，无任何KeyError）
+# 1. 加载Excel数据（移除skip_blank_lines，兼容旧版pandas）
 # ----------------------
 @st.cache_data
 def load_plant_data():
     """精准加载荆楚植物Excel数据，适配所有真实列名，处理空值"""
     try:
-        # 读取Excel，强制指定header=0，忽略前面空行，精准识别表头
+        # 读取Excel，移除skip_blank_lines参数，兼容旧版pandas
         df = pd.read_excel(
             "data/荆楚植物文化图谱植物数据.xlsx",
             engine="openpyxl",
-            header=0,
-            skip_blank_lines=True
+            header=0
         )
+        # 手动过滤空行，替代skip_blank_lines功能
+        df = df.dropna(how="all")
         # 全局空值替换为"无"，避免显示空白/报错
         df = df.fillna("无")
         
