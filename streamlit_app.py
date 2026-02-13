@@ -144,9 +144,9 @@ alias_map = {
 }
 
 # ----------------------
-# 5. 页面样式与布局（突出50种植物数据）
+# 5. 页面样式与布局（清晰版：修复颜色、移除问号）
 # ----------------------
-# 自定义样式美化（确保数据清晰显示）
+# 自定义样式美化（修复颜色对比，移除问号图标）
 st.markdown("""
 <style>
     /* 按钮样式 */
@@ -160,7 +160,7 @@ st.markdown("""
     .stButton>button:hover {
         background-color: #1f6e43;
     }
-    /* 植物卡片样式（突出显示50种植物数据） */
+    /* 植物卡片样式（修复颜色对比，确保文字清晰） */
     .plant-card {
         background-color: #f0f8fb;
         padding: 18px;
@@ -168,37 +168,54 @@ st.markdown("""
         margin: 12px 0;
         border-left: 5px solid #2E8B57;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        color: #212529; /* 卡片内文字改为深灰，确保清晰 */
+    }
+    .plant-card h3 {
+        color: #2E8B57 !important; /* 卡片标题用绿色，与边框呼应 */
+    }
+    .plant-card p {
+        color: #212529 !important; /* 卡片内文字用深灰，避免与背景混淆 */
     }
     /* 侧边栏样式 */
     [data-testid="stSidebar"] {
         background-color: #f8f9fa;
     }
-    /* 标题样式 */
+    /* 标题样式（移除问号，统一颜色） */
     h1, h3 {
         color: #2E8B57;
+    }
+    /* 移除所有问号图标 */
+    [data-testid="stMarkdownContainer"] svg[aria-label="Questionmark"] {
+        display: none !important;
     }
     /* 输入框样式 */
     .stTextInput>div>div>input {
         height: 3em;
         border-radius: 8px;
+        color: #212529; /* 输入框文字深灰 */
     }
     /* 下拉选择框样式 */
     .stSelectbox>div>div>div {
         background-color: #f0f8fb;
         border-radius: 8px;
+        color: #212529; /* 下拉框文字深灰 */
     }
     /* 统计数字样式 */
     .stMetric-value {
         color: #2E8B57;
     }
+    /* 全局文字颜色（确保所有文字清晰） */
+    body {
+        color: #212529;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 页面标题（突出50种植物）
+# 页面标题（移除问号，直接显示文字）
 st.title("🌿 荆楚植物智能问答系统")
 st.markdown("##### 📚 基于你的荆楚植物Excel数据（共50种植物）")
 
-# 侧边栏（展示50种植物的统计信息）
+# 侧边栏（移除问号，直接显示文字）
 with st.sidebar:
     st.markdown("### 🌱 关于系统")
     st.markdown("本系统基于**你的荆楚植物文化Excel数据**（共50种植物）+ 大语言模型，提供精准的植物文化问答服务。")
@@ -222,15 +239,15 @@ with st.sidebar:
         st.metric("🌳 科属数量", total_families)
     
     st.markdown("---")
-    st.markdown("### ❓ 提问示例（基于50种植物）")
+    st.markdown("### 提问示例（基于50种植物）")
     st.markdown("- 梅花在荆楚文化中的象征意义？")
     st.markdown("- 重阳节和哪些荆楚植物有关？")
     st.markdown("- 湖北哪些地方盛产荷花？")
     st.markdown("- 兰花属于哪个科属？")
 
-# 主界面布局（确保50种植物数据正常展示）
+# 主界面布局（移除问号，直接显示文字）
 st.markdown("---")
-st.markdown("### ❓ 智能问答")
+st.markdown("### 智能问答")
 user_question = st.text_input(
     label="请输入你的问题（如：梅花的文化象征？）",
     placeholder="输入后点击按钮，基于你的50种植物数据生成回答...",
@@ -240,7 +257,7 @@ if st.button("获取专业回答", type="primary"):
     if user_question.strip():
         with st.spinner("🤔 正在检索你的50种植物数据并生成回答..."):
             answer = generate_answer(user_question)
-            st.markdown("### 📝 回答（基于你的50种植物数据）")
+            st.markdown("### 回答（基于你的50种植物数据）")
             st.write(answer)
     else:
         st.warning("⚠️ 请先输入你的问题！")
@@ -254,7 +271,7 @@ with col_main1:
     random_plant = random.choice(plant_data)
     st.markdown(f"""
     <div class="plant-card">
-        <h3 style="margin:0; color:#2E8B57;">{random_plant['name']}</h3>
+        <h3 style="margin:0;">{random_plant['name']}</h3>
         <p><strong>🔍 拉丁名</strong>：{random_plant['latin']}</p>
         <p><strong>🌳 科属</strong>：{random_plant['family']}</p>
         <p><strong>📍 分布区域</strong>：{random_plant['distribution']}</p>
@@ -278,7 +295,7 @@ with col_main2:
         detail = get_plant_detail(selected_plant)
         st.markdown(f"""
         <div class="plant-card">
-            <h3 style="margin:0; color:#2E8B57;">{detail['name']} 详细信息</h3>
+            <h3 style="margin:0;">{detail['name']} 详细信息</h3>
             <p><strong>🔍 拉丁名</strong>：{detail['latin']}</p>
             <p><strong>🌳 科属</strong>：{detail['family']}</p>
             <p><strong>📍 地理分布</strong>：{detail['distribution']}</p>
