@@ -6,7 +6,7 @@ from groq import Groq
 
 # 页面配置（必须放在最前面）
 st.set_page_config(
-    page_title="荆楚植物智能问答系统",
+    page_title="🌿 荆楚植物智能问答系统",
     page_icon="🌿",
     layout="wide"
 )
@@ -144,93 +144,145 @@ alias_map = {
 }
 
 # ----------------------
-# 5. 页面样式与布局（清晰版：修复颜色、移除问号）
+# 5. 页面样式与布局（最终版：修复所有颜色问题）
 # ----------------------
-# 自定义样式美化（修复颜色对比，移除问号图标）
+# 自定义样式美化（彻底修复侧边栏+卡片颜色，确保所有场景清晰）
 st.markdown("""
 <style>
+    /* 全局重置：强制统一样式，不受Streamlit主题影响 */
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
     /* 按钮样式 */
     .stButton>button {
-        background-color: #2E8B57;
-        color: white;
+        background-color: #2E8B57 !important;
+        color: #ffffff !important;
         border-radius: 8px;
         height: 3em;
         width: 100%;
+        border: none !important;
     }
     .stButton>button:hover {
-        background-color: #1f6e43;
+        background-color: #1f6e43 !important;
     }
-    /* 植物卡片样式（修复颜色对比，确保文字清晰） */
+
+    /* 植物卡片样式（彻底修复颜色对比） */
     .plant-card {
-        background-color: #f0f8fb;
-        padding: 18px;
+        background-color: #ffffff !important; /* 纯白背景，确保文字清晰 */
+        padding: 20px;
         border-radius: 10px;
-        margin: 12px 0;
-        border-left: 5px solid #2E8B57;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        color: #212529; /* 卡片内文字改为深灰，确保清晰 */
+        margin: 15px 0;
+        border-left: 5px solid #2E8B57 !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        color: #1a1a1a !important; /* 深黑文字，对比强烈 */
     }
     .plant-card h3 {
-        color: #2E8B57 !important; /* 卡片标题用绿色，与边框呼应 */
+        color: #2E8B57 !important; /* 标题绿色，突出层级 */
+        font-size: 1.3em !important;
+        margin-bottom: 10px !important;
     }
     .plant-card p {
-        color: #212529 !important; /* 卡片内文字用深灰，避免与背景混淆 */
+        color: #1a1a1a !important; /* 正文深黑，清晰可读 */
+        font-size: 1em !important;
+        line-height: 1.5 !important;
+        margin: 5px 0 !important;
     }
-    /* 侧边栏样式 */
+    .plant-card strong {
+        color: #2E8B57 !important; /* 强调文字绿色 */
+    }
+
+    /* 侧边栏样式（彻底修复，不受主题影响） */
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
+        background-color: #2E8B57 !important; /* 侧边栏绿色背景 */
+        color: #ffffff !important; /* 侧边栏文字纯白 */
     }
-    /* 标题样式（移除问号，统一颜色） */
-    h1, h3 {
-        color: #2E8B57;
+    [data-testid="stSidebar"] .stMarkdown,
+    [data-testid="stSidebar"] .stMarkdown h3,
+    [data-testid="stSidebar"] .stMarkdown p,
+    [data-testid="stSidebar"] .stMarkdown li {
+        color: #ffffff !important; /* 侧边栏所有文字纯白 */
     }
+    [data-testid="stSidebar"] .stMetric {
+        background-color: rgba(255,255,255,0.1) !important;
+        padding: 10px;
+        border-radius: 8px;
+    }
+    [data-testid="stSidebar"] .stMetric-label {
+        color: #ffffff !important;
+    }
+    [data-testid="stSidebar"] .stMetric-value {
+        color: #ffffff !important;
+        font-size: 1.5em !important;
+        font-weight: bold !important;
+    }
+
+    /* 标题样式（统一颜色） */
+    h1, h2, h3, h4 {
+        color: #2E8B57 !important;
+    }
+
     /* 移除所有问号图标 */
-    [data-testid="stMarkdownContainer"] svg[aria-label="Questionmark"] {
+    [data-testid="stMarkdownContainer"] svg[aria-label="Questionmark"],
+    [data-testid="stTooltipIcon"] {
         display: none !important;
     }
+
     /* 输入框样式 */
     .stTextInput>div>div>input {
         height: 3em;
         border-radius: 8px;
-        color: #212529; /* 输入框文字深灰 */
+        color: #1a1a1a !important;
+        background-color: #f8f9fa !important;
+        border: 1px solid #2E8B57 !important;
     }
+
     /* 下拉选择框样式 */
     .stSelectbox>div>div>div {
-        background-color: #f0f8fb;
+        background-color: #f8f9fa !important;
         border-radius: 8px;
-        color: #212529; /* 下拉框文字深灰 */
+        color: #1a1a1a !important;
+        border: 1px solid #2E8B57 !important;
     }
-    /* 统计数字样式 */
-    .stMetric-value {
-        color: #2E8B57;
+
+    /* 全局样式 */
+    .main {
+        background-color: #f8f9fa !important;
     }
-    /* 全局文字颜色（确保所有文字清晰） */
     body {
-        color: #212529;
+        color: #1a1a1a !important;
+    }
+
+    /* 提示框样式 */
+    .stSuccess, .stWarning, .stError {
+        border-radius: 8px;
+        padding: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 页面标题（移除问号，直接显示文字）
+# 页面标题（简洁清晰）
 st.title("🌿 荆楚植物智能问答系统")
-st.markdown("##### 📚 基于你的荆楚植物Excel数据（共50种植物）")
+st.markdown("##### 基于你的荆楚植物Excel数据（共50种植物）")
 
-# 侧边栏（移除问号，直接显示文字）
+# 侧边栏（最终版：清晰易读）
 with st.sidebar:
     st.markdown("### 🌱 关于系统")
-    st.markdown("本系统基于**你的荆楚植物文化Excel数据**（共50种植物）+ 大语言模型，提供精准的植物文化问答服务。")
+    st.markdown("本系统基于你的荆楚植物文化Excel数据（50种植物）+ 大语言模型，提供精准的植物文化问答服务。")
     
     st.markdown("---")
-    st.markdown("### 📊 数据概览（来自你的50种植物）")
-    # 统计你的50种植物数据（实时计算）
+    st.markdown("### 📊 数据概览")
+    # 统计你的50种植物数据
     total_plants = len(plant_data)
-    total_families = len(set([p["family"] for p in plant_data]))  # 去重统计科属数
+    total_families = len(set([p["family"] for p in plant_data]))
     total_festivals = 0
     for p in plant_data:
         if p["festivals"] != "无" and p["festivals"] != "":
-            total_festivals += len(str(p["festivals"]).split("、"))  # 统计关联节日总数
+            total_festivals += len(str(p["festivals"]).split("、"))
     
-    # 展示统计指标（突出50种植物）
+    # 展示统计指标
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         st.metric("🌿 植物总数", total_plants)
@@ -239,13 +291,13 @@ with st.sidebar:
         st.metric("🌳 科属数量", total_families)
     
     st.markdown("---")
-    st.markdown("### 提问示例（基于50种植物）")
+    st.markdown("### 提问示例")
     st.markdown("- 梅花在荆楚文化中的象征意义？")
     st.markdown("- 重阳节和哪些荆楚植物有关？")
     st.markdown("- 湖北哪些地方盛产荷花？")
     st.markdown("- 兰花属于哪个科属？")
 
-# 主界面布局（移除问号，直接显示文字）
+# 主界面布局（最终版：清晰简洁）
 st.markdown("---")
 st.markdown("### 智能问答")
 user_question = st.text_input(
@@ -255,23 +307,23 @@ user_question = st.text_input(
 )
 if st.button("获取专业回答", type="primary"):
     if user_question.strip():
-        with st.spinner("🤔 正在检索你的50种植物数据并生成回答..."):
+        with st.spinner("正在检索你的50种植物数据并生成回答..."):
             answer = generate_answer(user_question)
             st.markdown("### 回答（基于你的50种植物数据）")
             st.write(answer)
     else:
-        st.warning("⚠️ 请先输入你的问题！")
+        st.warning("请先输入你的问题！")
 
 st.markdown("---")
 col_main1, col_main2 = st.columns(2)
 
 with col_main1:
-    st.markdown("### 🌺 今日推荐植物（来自50种植物）")
-    # 从50种植物中随机推荐（每次刷新换一种）
+    st.markdown("### 🌺 今日推荐植物")
+    # 从50种植物中随机推荐
     random_plant = random.choice(plant_data)
     st.markdown(f"""
     <div class="plant-card">
-        <h3 style="margin:0;">{random_plant['name']}</h3>
+        <h3>{random_plant['name']}</h3>
         <p><strong>🔍 拉丁名</strong>：{random_plant['latin']}</p>
         <p><strong>🌳 科属</strong>：{random_plant['family']}</p>
         <p><strong>📍 分布区域</strong>：{random_plant['distribution']}</p>
@@ -281,8 +333,8 @@ with col_main1:
     """, unsafe_allow_html=True)
 
 with col_main2:
-    st.markdown("### 📜 植物名录查询（50种植物）")
-    # 展示全部50种植物的名录（下拉选择）
+    st.markdown("### 📜 植物名录查询")
+    # 展示全部50种植物的名录
     plant_names = [p["name"] for p in plant_data]
     selected_plant = st.selectbox(
         "从50种植物中选择查看详情", 
@@ -290,12 +342,12 @@ with col_main2:
         key="plant_selector"
     )
     
-    # 展示选中植物的详情（来自你的50种植物数据）
+    # 展示选中植物的详情
     if selected_plant:
         detail = get_plant_detail(selected_plant)
         st.markdown(f"""
         <div class="plant-card">
-            <h3 style="margin:0;">{detail['name']} 详细信息</h3>
+            <h3>{detail['name']} 详细信息</h3>
             <p><strong>🔍 拉丁名</strong>：{detail['latin']}</p>
             <p><strong>🌳 科属</strong>：{detail['family']}</p>
             <p><strong>📍 地理分布</strong>：{detail['distribution']}</p>
@@ -304,6 +356,6 @@ with col_main2:
         </div>
         """, unsafe_allow_html=True)
 
-# 页脚信息（强调50种植物数据）
+# 页脚信息
 st.markdown("---")
-st.markdown("💡 数据来源：你的荆楚植物文化Excel数据表（共50种植物） | 技术支持：Streamlit + Groq | 后续更新Excel文件即可同步50种植物数据")
+st.markdown("💡 数据来源：你的荆楚植物文化Excel数据表（共50种植物） | 技术支持：Streamlit + Groq | 后续更新Excel文件即可同步数据")
