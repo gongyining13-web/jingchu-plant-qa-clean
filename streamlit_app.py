@@ -13,11 +13,11 @@ st.set_page_config(
 )
 
 # ----------------------
-# 1. 稳健加载Excel数据（先打印列名，再用.get()读取，避免KeyError）
+# 1. 按索引读取Excel数据（彻底解决列名识别问题）
 # ----------------------
 @st.cache_data
 def load_plant_data():
-    """稳健加载Excel数据，先打印列名，再用.get()读取字段"""
+    """按索引读取Excel数据，适配Unnamed列名，加载全部49种植物"""
     try:
         # 读取Excel
         df = pd.read_excel(
@@ -25,24 +25,24 @@ def load_plant_data():
             engine="openpyxl",
             header=0
         )
-        # 打印所有列名，确认真实列名
-        st.write("✅ Excel 列名如下：", df.columns.tolist())
+        # 打印列名，确认索引
+        st.write("✅ Excel 列名（索引）：", df.columns.tolist())
         # 过滤空行
         df = df.dropna(how="all")
         # 全局空值替换为"无"
         df = df.fillna("无")
         
-        # 👇 用 .get() 方法读取字段，彻底避免KeyError，列名不匹配时显示"未知"
-        df["name"]            = df.get("植物中文名", df.get("Unnamed: 1", "未知"))
-        df["latin"]           = df.get("植物拉丁学名", df.get("Unnamed: 2", "未知"))
-        df["family"]          = df.get("植物科名", df.get("Unnamed: 3", "未知"))
-        df["genus"]           = df.get("植物属名", df.get("Unnamed: 4", "未知"))
-        df["distribution"]    = df.get("现代地理分布", df.get("Unnamed: 5", "未知"))
-        df["cultural_symbol"] = df.get("文化象征", df.get("Unnamed: 6", "未知"))
-        df["festivals"]       = df.get("节日", df.get("Unnamed: 7", "未知"))
-        df["medicinal_value"] = df.get("药用价值", df.get("Unnamed: 8", "未知"))
-        df["traditional_use"] = df.get("传统实用价值", df.get("Unnamed: 9", "未知"))
-        df["ecological_significance"] = df.get("生态意义", df.get("Unnamed: 10", "未知"))
+        # 👇 按索引读取每一列，完全匹配你的Excel表头顺序
+        df["name"]            = df.iloc[:, 1]  # 第2列：植物中文名
+        df["latin"]           = df.iloc[:, 2]  # 第3列：植物拉丁学名
+        df["family"]          = df.iloc[:, 3]  # 第4列：植物科名
+        df["genus"]           = df.iloc[:, 4]  # 第5列：植物属名
+        df["distribution"]    = df.iloc[:, 10] # 第11列：现代地理分布
+        df["cultural_symbol"] = df.iloc[:, 7]  # 第8列：文化象征
+        df["festivals"]       = df.iloc[:, 17] # 第18列：节日
+        df["medicinal_value"] = df.iloc[:, 16] # 第17列：药用价值
+        df["traditional_use"] = df.iloc[:, 11] # 第12列：传统实用价值
+        df["ecological_significance"] = df.iloc[:, 8] # 第9列：生态意义
         
         # 转换为字典列表，仅保留有效植物数据
         plant_list = [p for p in df.to_dict("records") if p["name"] != "无" and p["name"] != "未知"]
