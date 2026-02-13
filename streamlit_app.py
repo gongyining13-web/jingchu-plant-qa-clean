@@ -4,7 +4,9 @@ import random
 import pandas as pd
 from groq import Groq
 
-# 页面核心配置
+# ------------------------------------------------------------
+# 0. 页面配置（必须放在最前面）
+# ------------------------------------------------------------
 st.set_page_config(
     page_title="🌿 荆楚植物智能问答系统",
     page_icon="🌿",
@@ -12,28 +14,34 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ----------------------
-# 1. 手动指定表头行，彻底解决列名识别问题
-# ----------------------
+# ------------------------------------------------------------
+# 1. 别名映射表（定义在最前面，供多个函数使用）
+# ------------------------------------------------------------
+ALIAS_MAP = {
+    "梅花": "梅", "菊花": "菊", "兰花": "兰", "竹子": "竹",
+    "荷花": "荷（莲）", "莲花": "荷（莲）", "桂花": "桂", "牡丹花": "牡丹",
+    "杜鹃花": "杜鹃", "水仙花": "水仙", "艾草": "艾", "菖蒲叶": "菖蒲"
+}
+
+# ------------------------------------------------------------
+# 2. 加载 Excel 数据（缓存）
+# ------------------------------------------------------------
 @st.cache_data
 def load_plant_data():
-    """手动指定表头行，彻底解决列名识别问题"""
+    """✅ 关键修复：header=2 跳过前两行，第三行才是真正的表头"""
     try:
-        # 👇 关键：指定 header=1，跳过第1行，把第2行作为表头
+        # 重点：header=2 表示将 Excel 的第三行作为列名（行号从0开始）
         df = pd.read_excel(
             "data/荆楚植物文化图谱植物数据.xlsx",
             engine="openpyxl",
-            header=1  # 表头在第2行（从0开始计数）
+            header=2
         )
-        
-        # 打印列名，确认是否正确识别
-        st.write("✅ 成功识别的列名：", df.columns.tolist())
-        
-        # 过滤空行，处理空值
+
+        # 过滤完全空的行
         df = df.dropna(how="all")
         df = df.fillna("无")
-        
-        # 👇 现在按正确的列名读取数据
+
+        # 列名重映射（你的 Excel 表头就是中文名，直接使用）
         df["name"]            = df["植物中文名"]
         df["latin"]           = df["植物拉丁学名"]
         df["family"]          = df["植物科名"]
@@ -44,54 +52,69 @@ def load_plant_data():
         df["medicinal_value"] = df["药用价值"]
         df["traditional_use"] = df["传统实用价值"]
         df["ecological_significance"] = df["生态意义"]
-        
-        # 转换为字典列表，仅保留有效植物
+
+        # 转换为字典列表，只保留有效植物
         plant_list = [p for p in df.to_dict("records") if p["name"] != "无"]
         st.success(f"✅ 成功加载 {len(plant_list)} 种荆楚植物数据")
         return plant_list
-    
+
     except FileNotFoundError:
-        st.error("⚠️ 未找到Excel文件！请确认data文件夹下有「荆楚植物文化图谱植物数据.xlsx」")
+        st.error("⚠️ 未找到Excel文件！请确认 data 文件夹下有「荆楚植物文化图谱植物数据.xlsx」")
         st.stop()
     except Exception as e:
-        st.error(f"数据加载失败：{str(e)[:100]}")
+        st.error(f"❌ 数据加载失败：{str(e)[:100]}")
         st.stop()
 
-# ----------------------
-# 2. 初始化Groq客户端
-# ----------------------
+# ------------------------------------------------------------
+# 3. 初始化 Groq 客户端（缓存）
+# ------------------------------------------------------------
 @st.cache_resource
 def init_groq_client():
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        st.error("❌ 未配置GROQ_API_KEY！请在Streamlit Secrets中填写")
+        st.error("❌ 未配置 GROQ_API_KEY！请在 Streamlit Secrets 中填写")
         st.stop()
     try:
         return Groq(api_key=api_key, timeout=60)
     except Exception as e:
-        st.error(f"Groq客户端初始化失败：{str(e)[:100]}")
+        st.error(f"❌ Groq客户端初始化失败：{str(e)[:100]}")
         st.stop()
 
-# ----------------------
-# 3. 核心功能函数
-# ----------------------
+# ------------------------------------------------------------
+# 4. 全局数据加载（必须放在函数定义之后，但要在界面渲染前执行）
+# ------------------------------------------------------------
+plant_data = load_plant_data()
+groq_client = init_groq_client()
+
+# ------------------------------------------------------------
+# 5. 辅助函数：获取植物详情（处理别名）
+# ------------------------------------------------------------
 def get_plant_detail(plant_name):
-    alias_map = {
-        "梅花":"梅", "菊花":"菊", "兰花":"兰", "竹子":"竹",
-        "荷花":"荷（莲）", "莲花":"荷（莲）", "桂花":"桂", "牡丹花":"牡丹",
-        "杜鹃花":"杜鹃", "水仙花":"水仙", "艾草":"艾", "菖蒲叶":"菖蒲"
-    }
-    target_name = alias_map.get(plant_name.strip(), plant_name.strip())
+    """根据输入的植物名（含别名）返回对应的植物字典"""
+    # 先尝试用别名映射
+    target_name = ALIAS_MAP.get(plant_name.strip(), plant_name.strip())
     for plant in plant_data:
+        # 精确匹配，或主名包含在植物名称中（例如“荷（莲）”可被“荷”匹配）
         if plant["name"] == target_name or target_name in plant["name"]:
             return plant
+    # 未找到则返回第一个（兜底）
     return plant_data[0] if plant_data else {}
 
+# ------------------------------------------------------------
+# 6. 智能问答生成
+# ------------------------------------------------------------
 def generate_intelligent_answer(question):
     try:
         all_plant_names = [p["name"] for p in plant_data]
-        relevant_plants = [p for p in all_plant_names if p in question or any(alias in question for alias in alias_map.keys())]
-        
+        # 识别问题中涉及的植物（直接匹配主名或别名）
+        relevant_plants = []
+        for p_name in all_plant_names:
+            if p_name in question:
+                relevant_plants.append(p_name)
+        for alias, real_name in ALIAS_MAP.items():
+            if alias in question and real_name not in relevant_plants:
+                relevant_plants.append(real_name)
+
         context = "### 荆楚植物参考数据：\n"
         if relevant_plants:
             for p_name in relevant_plants:
@@ -103,8 +126,8 @@ def generate_intelligent_answer(question):
   关联节日：{plant.get('festivals', '未知')} | 药用价值：{plant.get('medicinal_value', '未知')}
 """
         else:
-            context += "未匹配到具体植物，基于荆楚植物文化常识回答。"
-        
+            context += "未匹配到具体植物，将基于荆楚植物文化常识回答。"
+
         prompt = f"""
 你是荆楚植物文化研究员，仅围绕湖北地域植物作答：
 1. 有数据时100%基于数据，无数据时基于常识，不编造；
@@ -117,7 +140,7 @@ def generate_intelligent_answer(question):
 """
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",
+            model="llama-3.1-8b-instant",   # Groq 上可用的模型
             temperature=0.1,
             max_tokens=200
         )
@@ -125,20 +148,9 @@ def generate_intelligent_answer(question):
     except Exception as e:
         return f"💡 问答暂无法响应，错误原因：{str(e)[:80]}"
 
-# ----------------------
-# 4. 初始化全局资源
-# ----------------------
-plant_data = load_plant_data()
-groq_client = init_groq_client()
-alias_map = {
-    "梅花":"梅", "菊花":"菊", "兰花":"兰", "竹子":"竹",
-    "荷花":"荷（莲）", "莲花":"荷（莲）", "桂花":"桂", "牡丹花":"牡丹",
-    "杜鹃花":"杜鹃", "水仙花":"水仙", "艾草":"艾", "菖蒲叶":"菖蒲"
-}
-
-# ----------------------
-# 5. 全局样式
-# ----------------------
+# ------------------------------------------------------------
+# 7. 页面样式（纯美化，无逻辑改动）
+# ------------------------------------------------------------
 st.markdown("""
 <style>
     * {margin: 0; padding: 0; box-sizing: border-box;}
@@ -234,25 +246,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------------
-# 6. 页面主体布局
-# ----------------------
+# ------------------------------------------------------------
+# 8. 页面主体布局
+# ------------------------------------------------------------
 st.title("🌿 荆楚植物智能问答系统")
 st.markdown("##### 基于**荆楚植物文化图谱**原始数据开发 | 湖北地域专属植物文化查询")
 st.markdown("---")
 
-# 侧边栏
+# --- 侧边栏 ---
 with st.sidebar:
     st.markdown("### 🌱 系统说明")
     st.markdown("本系统基于荆楚植物文化图谱原始Excel数据开发，提供植物详情查询和智能文化问答。")
-    
+
     st.markdown("---")
     st.markdown("### 📊 数据概览")
     total_plants = len(plant_data)
     total_families = len(set([p.get("family", "未知") for p in plant_data]))
-    total_festivals = len(set([f for p in plant_data for f in p.get("festivals", "无").split("、") if p.get("festivals", "无") != "无"]))
-    total_hubei_dist = len(set([d for p in plant_data for d in p.get("distribution", "无").split("；") if p.get("distribution", "无") != "无"]))
-    
+    total_festivals = len(set([
+        f for p in plant_data
+        for f in p.get("festivals", "无").split("、")
+        if p.get("festivals", "无") != "无"
+    ]))
+    total_hubei_dist = len(set([
+        d for p in plant_data
+        for d in p.get("distribution", "无").split("；")
+        if p.get("distribution", "无") != "无"
+    ]))
+
     col_s1, col_s2 = st.columns(2)
     with col_s1:
         st.metric("🌿 植物总数", total_plants)
@@ -260,14 +280,14 @@ with st.sidebar:
     with col_s2:
         st.metric("🌳 科属数量", total_families)
         st.metric("📍 湖北分布区", total_hubei_dist)
-    
+
     st.markdown("---")
     st.markdown("### ❓ 提问示例")
     st.markdown("- 梅在荆楚文化中的象征意义？")
     st.markdown("- 重阳节和哪些湖北植物有关？")
     st.markdown("- 荷（莲）在湖北的分布区域？")
 
-# 智能问答模块
+# --- 智能问答区域 ---
 st.markdown("### 🧠 智能文化问答")
 user_question = st.text_input(
     label="请输入你的问题",
@@ -276,7 +296,7 @@ user_question = st.text_input(
     label_visibility="collapsed"
 )
 if st.button("获取精准回答", type="primary"):
-    if user_question.strip() == "":
+    if not user_question.strip():
         st.warning("⚠️ 请输入有效问题！")
     else:
         with st.spinner("🔍 正在检索数据..."):
@@ -285,7 +305,7 @@ if st.button("获取精准回答", type="primary"):
             st.write(answer)
 st.markdown("---")
 
-# 植物卡片模块
+# --- 植物卡片（今日推荐 + 植物名录）---
 col_card1, col_card2 = st.columns(2, gap="medium")
 
 with col_card1:
@@ -334,6 +354,6 @@ with col_card2:
     else:
         st.warning("⚠️ 暂无有效植物数据")
 
-# 页脚
+# --- 页脚 ---
 st.markdown("---")
 st.markdown('<p class="footer">💡 数据来源：荆楚植物文化图谱原始Excel数据 | 技术支持：Streamlit + Groq</p>', unsafe_allow_html=True)
