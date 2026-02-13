@@ -12,32 +12,36 @@ st.set_page_config(
 )
 
 # ----------------------
-# 1. 加载你的Excel植物数据（彻底修复字段映射）
+# 1. 加载你的Excel植物数据（彻底修复读取问题）
 # ----------------------
 @st.cache_data
 def load_plant_data():
-    """加载Excel格式的荆楚植物数据（完全匹配你这张表）"""
+    """稳健加载Excel数据，处理各种表头问题"""
     try:
-        # 读取你的Excel文件
+        # 读取Excel，指定header=0，确保从第1行读取表头
         df = pd.read_excel("data/荆楚植物文化图谱植物数据.xlsx", engine="openpyxl", header=0)
+        
+        # 调试：打印所有列名，确认读取正确
+        st.write("✅ 成功读取Excel，列名如下：", df.columns.tolist())
+        
         # 处理空值
         df = df.fillna("无")
         
-        # 👇 完全匹配你Excel的列名，确保所有字段都能读到
-        df["name"]            = df["植物中文名"]
-        df["latin"]           = df["植物拉丁学名"]
-        df["family"]          = df["植物科"]
-        df["genus"]           = df["植物属名"]
-        df["distribution"]    = df["现代地理分布"]
-        df["cultural_symbol"] = df["文化象征"]
-        df["festivals"]       = df["节日"]
-        df["medicinal_value"] = df["药用价值"]
-        df["traditional_use"] = df["传统实用价值"]
-        df["ecological_significance"] = df["生态意义"]
+        # 👇 用 .get() 方法读取字段，彻底避免KeyError
+        df["name"]            = df.get("植物中文名", "未知")
+        df["latin"]           = df.get("植物拉丁学名", "未知")
+        df["family"]          = df.get("植物科", "未知")
+        df["genus"]           = df.get("植物属名", "未知")
+        df["distribution"]    = df.get("现代地理分布", "未知")
+        df["cultural_symbol"] = df.get("文化象征", "未知")
+        df["festivals"]       = df.get("节日", "未知")
+        df["medicinal_value"] = df.get("药用价值", "未知")
+        df["traditional_use"] = df.get("传统实用价值", "未知")
+        df["ecological_significance"] = df.get("生态意义", "未知")
         
         # 转换为字典列表
         plant_list = df.to_dict("records")
-        st.success(f"✅ 成功加载 {len(plant_list)} 种荆楚植物数据")
+        st.success(f"✅ 成功加载 {len(plant_list)} 种荆楚植物数据（来自你的Excel）")
         return plant_list
     except Exception as e:
         st.error(f"加载数据失败：{str(e)[:100]}")
