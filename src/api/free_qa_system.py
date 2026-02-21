@@ -9,6 +9,7 @@ from neo4j import GraphDatabase
 import jieba
 import logging
 from typing import List, Optional
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class PlantQASystem:
     def __init__(self, uri: str = None, user: str = None, password: str = None):
         """
         初始化Neo4j连接
-        优先级：传入参数 > 环境变量 > 本地开发默认值（你的neo4j账号：neo4j/12345678）
+        优先级：传入参数 > 环境变量 > 本地开发默认值
         """
         self.uri = uri or os.environ.get("NEO4J_URI", "bolt://localhost:7687")
         self.user = user or os.environ.get("NEO4J_USER", "neo4j")
