@@ -2,13 +2,20 @@
 # -*- coding: utf-8 -*-
 """
 荆楚植物文化知识图谱 - 完整问答系统
-支持环境变量：NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+支持环境变量：NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, NEO4J_DATABASE
+新增 LangChainPlantQA 类，实现自然语言到 Cypher 的智能转换（兼容 langchain 0.1.0）
 """
 import os
 from neo4j import GraphDatabase
 import jieba
 import logging
 from typing import List, Optional
+
+# ---------- LangChain 相关导入（适配 0.1.0） ----------
+from langchain.chains import GraphCypherQAChain
+from langchain.graphs import Neo4jGraph
+from langchain_groq import ChatGroq
+from langchain.prompts import PromptTemplate
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -43,45 +50,34 @@ class PlantQASystem:
             return [record['name'] for record in result]
 
     def _setup_jieba(self):
-        # 添加植物名称
         for name in self.plant_names:
             jieba.add_word(name)
-        # 添加别名（使用类属性）
         for alias in self.ALIAS_MAP.keys():
             jieba.add_word(alias)
-        # 添加节日词汇
         jieba.add_word("端午节")
         jieba.add_word("春节")
         jieba.add_word("重阳节")
         jieba.add_word("中秋节")
         jieba.add_word("清明节")
 
-    # ------------------------------------------------------------
-    # 核心方法：回答问题
-    # ------------------------------------------------------------
+    # ---------- 核心方法 ----------
     def answer(self, question: str) -> str:
-        """主回答函数，自动识别植物并分派到具体查询"""
-        # 1. 直接匹配知识库中的植物名
         for plant in self.plant_names:
             if plant in question:
                 return self._answer_for_plant(plant, question)
-        # 2. 通过别名映射识别（使用类属性）
         for alias, real_name in self.ALIAS_MAP.items():
             if alias in question:
                 if real_name in self.plant_names:
                     return self._answer_for_plant(real_name, question)
                 else:
                     return f"❌ 暂未收录该种植物（{alias}）"
-        # 3. 分词尝试提取（兜底）
         words = jieba.lcut(question)
         for word in words:
             if word in self.plant_names:
                 return self._answer_for_plant(word, question)
-        # 4. 完全没有识别出任何植物
         return self._handle_general_question(question)
 
     def _answer_for_plant(self, plant: str, question: str) -> str:
-        """给定植物名，根据问题类型返回对应信息"""
         q_type = self._identify_question_type(question)
         with self.driver.session() as session:
             if q_type == "symbol":
@@ -101,9 +97,6 @@ class PlantQASystem:
             else:
                 return self._query_basic(session, plant)
 
-    # ------------------------------------------------------------
-    # 问题类型识别
-    # ------------------------------------------------------------
     def _identify_question_type(self, question: str) -> str:
         q = question.lower()
         if any(k in q for k in ["象征", "寓意", "代表", "含义", "文化"]):
@@ -123,9 +116,7 @@ class PlantQASystem:
         else:
             return "basic"
 
-    # ------------------------------------------------------------
-    # 具体查询方法（每个方法返回可直接显示的字符串）
-    # ------------------------------------------------------------
+    # ---------- 具体查询方法 ----------
     def _query_symbol(self, session, plant: str) -> str:
         result = session.run("""
             MATCH (p:Plant {name: $name})-[:HAS_SYMBOL]->(s:Symbol)
@@ -241,9 +232,7 @@ class PlantQASystem:
             return info
         return f"🌿 {plant} 的信息暂缺。"
 
-    # ------------------------------------------------------------
-    # 通用问题（不包含具体植物）
-    # ------------------------------------------------------------
+    # ---------- 通用问题 ----------
     def _handle_general_question(self, question: str) -> str:
         q = question.lower()
         if any(k in q for k in ["所有植物", "有哪些植物", "植物列表"]):
@@ -281,9 +270,7 @@ class PlantQASystem:
                     return f"📜 《楚辞》《诗经》中记载的植物：{ '、'.join(plants[:10]) }……"
         return "❓ 请明确指定植物名称（如：兰有什么文化象征？）"
 
-    # ------------------------------------------------------------
-    # 对外接口：获取植物的完整详细信息（用于侧边栏展示）
-    # ------------------------------------------------------------
+    # ---------- 对外接口 ----------
     def get_plant_detail(self, plant_name: str) -> dict:
         with self.driver.session() as session:
             result = session.run("""
@@ -326,6 +313,65 @@ class PlantQASystem:
     def close(self):
         self.driver.close()
 
+
+class LangChainPlantQA:
+    """
+    基于 LangChain 0.1.0 的智能问答类（不使用 langchain-neo4j 包）。
+    """
+    def __init__(self, uri=None, user=None, password=None, database=None, groq_api_key=None):
+        # 获取数据库名称（优先使用传入参数，其次环境变量，最后默认实例 ID）
+        self.database = database or os.environ.get("NEO4J_DATABASE", "60369e3e")
+        
+        # 连接 Neo4j（使用 langchain.graphs.Neo4jGraph，并指定数据库名）
+        self.graph = Neo4jGraph(
+            url=uri or os.environ.get("NEO4J_URI"),
+            username=user or os.environ.get("NEO4J_USER"),
+            password=password or os.environ.get("NEO4J_PASSWORD"),
+            database=self.database   # 关键：指定正确的数据库名
+        )
+        # 初始化 Groq LLM
+        self.llm = ChatGroq(
+            groq_api_key=groq_api_key or os.environ.get("GROQ_API_KEY"),
+            model_name="llama3-8b-8192",
+            temperature=0
+        )
+
+        # 自定义 Cypher 生成提示词
+        CYPHER_GENERATION_TEMPLATE = """你是一个 Neo4j 专家，根据用户问题生成 Cypher 查询。
+图数据库包含以下节点和关系：
+- 节点标签：Plant（植物）
+- 植物属性：name（植物中文名）、latin_name（拉丁名）、family（科）、genus（属）、distribution（分布）、cultural_symbol（文化象征）、folk_use（民俗用途）、medicinal_value（药用价值）
+- 关系类型：HAS_SYMBOL（指向 Symbol 节点）、HAS_MEDICINAL（指向 Medicinal 节点）、RECORDED_IN（指向 Literature 节点）、RELATED_TO_FESTIVAL（指向 Festival 节点）
+- Symbol 节点属性：meaning（象征意义）
+- Medicinal 节点属性：effect（药用功效）
+- Literature 节点属性：name（文献名）
+- Festival 节点属性：name（节日名）
+
+请只返回 Cypher 查询，不要包含其他解释。
+问题：{question}
+Cypher 查询："""
+        CYPHER_GENERATION_PROMPT = PromptTemplate(
+            input_variables=["question"], template=CYPHER_GENERATION_TEMPLATE
+        )
+
+        # 创建问答链（langchain 0.1.0 版本参数）
+        self.chain = GraphCypherQAChain.from_llm(
+            graph=self.graph,
+            llm=self.llm,
+            cypher_prompt=CYPHER_GENERATION_PROMPT,
+            verbose=True,
+            return_intermediate_steps=False,
+        )
+
+    def answer(self, question: str) -> str:
+        try:
+            # 0.1.0 版本使用 run 方法
+            result = self.chain.run(question)
+            return result
+        except Exception as e:
+            return f"智能问答出错：{str(e)}"
+
+
 def test():
     qa = PlantQASystem()
     test_qs = [
@@ -343,6 +389,7 @@ def test():
         print(f"\n❓ {q}")
         print(f"💬 {qa.answer(q)}")
     qa.close()
+
 
 if __name__ == "__main__":
     test()

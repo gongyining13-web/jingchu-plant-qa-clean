@@ -1,7 +1,7 @@
 ﻿import streamlit as st
 import os
 import random
-from src.api.free_qa_system import PlantQASystem
+from src.api.free_qa_system import PlantQASystem, LangChainPlantQA
 from groq import Groq
 
 # ------------------------------------------------------------
@@ -21,7 +21,8 @@ st.markdown('<link rel="manifest" href="/static/manifest.json">', unsafe_allow_h
 # 1. 初始化 Neo4j 连接（从环境变量读取）
 # ------------------------------------------------------------
 @st.cache_resource
-def init_neo4j_qa():
+def init_traditional_qa():
+    """初始化传统 PlantQASystem"""
     uri = os.getenv("NEO4J_URI")
     user = os.getenv("NEO4J_USER")
     password = os.getenv("NEO4J_PASSWORD")
@@ -30,8 +31,22 @@ def init_neo4j_qa():
         st.stop()
     return PlantQASystem(uri=uri, user=user, password=password)
 
-qa = init_neo4j_qa()
-plant_names = qa.plant_names  # 从 Neo4j 获取所有植物名称列表
+@st.cache_resource
+def init_langchain_qa():
+    """初始化 LangChainPlantQA"""
+    uri = os.getenv("NEO4J_URI")
+    user = os.getenv("NEO4J_USER")
+    password = os.getenv("NEO4J_PASSWORD")
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not all([uri, user, password, groq_api_key]):
+        st.error("❌ 未配置 Neo4j 或 Groq 环境变量！请在 Streamlit Secrets 中设置 NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, GROQ_API_KEY")
+        st.stop()
+    return LangChainPlantQA(uri=uri, user=user, password=password, groq_api_key=groq_api_key)
+
+# 初始化两个问答系统
+qa = init_traditional_qa()          # 传统系统，保持变量名以兼容后续代码
+qa_langchain = init_langchain_qa()  # LangChain 系统
+plant_names = qa.plant_names        # 从传统系统获取植物列表
 
 # ------------------------------------------------------------
 # 2. 别名映射表
@@ -43,7 +58,7 @@ ALIAS_MAP = {
 }
 
 # ------------------------------------------------------------
-# 3. 获取植物详情（封装 qa.get_plant_detail）
+# 3. 获取植物详情（封装 qa.get_plant_detail，使用传统系统）
 # ------------------------------------------------------------
 def get_plant_detail(plant_name):
     target_name = ALIAS_MAP.get(plant_name.strip(), plant_name.strip())
@@ -71,7 +86,7 @@ def get_plant_detail(plant_name):
     }
 
 # ------------------------------------------------------------
-# 4. 智能问答生成
+# 4. 智能问答生成（传统模式使用此函数）
 # ------------------------------------------------------------
 @st.cache_resource
 def init_groq_client():
@@ -84,6 +99,7 @@ def init_groq_client():
 groq_client = init_groq_client()
 
 def generate_intelligent_answer(question):
+    """传统模式：基于检索 + Groq 生成回答"""
     try:
         relevant_plants = []
         for name in plant_names:
@@ -96,7 +112,7 @@ def generate_intelligent_answer(question):
         context = "### 荆楚植物参考数据（实时查询自 Neo4j）：\n"
         if relevant_plants:
             for p_name in relevant_plants:
-                plant = qa.get_plant_detail(p_name)
+                plant = qa.get_plant_detail(p_name)   # 使用传统系统获取详情
                 if plant:
                     festivals = "、".join(plant.get("festivals", [])) if plant.get("festivals") else "无"
                     medicinal = "、".join(plant.get("medicinal", [])) if plant.get("medicinal") else "无"
@@ -174,12 +190,24 @@ user_question = st.text_input(
     key="user_question",
     label_visibility="collapsed"
 )
+
+# 添加模式选择
+qa_mode = st.radio(
+    "选择问答模式",
+    options=["传统规则", "智能LangChain"],
+    index=0,
+    horizontal=True
+)
+
 if st.button("获取精准回答", type="primary"):
     if not user_question.strip():
         st.warning("⚠️ 请输入有效问题！")
     else:
         with st.spinner("🔍 正在检索数据..."):
-            answer = generate_intelligent_answer(user_question)
+            if qa_mode == "传统规则":
+                answer = generate_intelligent_answer(user_question)
+            else:
+                answer = qa_langchain.answer(user_question)
             st.markdown("#### 📝 专属回答")
             st.write(answer)
 st.markdown("---")
@@ -191,7 +219,7 @@ with col_card1:
     st.markdown("### 🌸 今日推荐植物")
     if plant_names:
         random_name = random.choice(plant_names)
-        plant = qa.get_plant_detail(random_name)
+        plant = qa.get_plant_detail(random_name)   # 使用传统系统获取详情
         if plant:
             festivals = "、".join(plant.get("festivals", [])) if plant.get("festivals") else "无"
             medicinal = "、".join(plant.get("medicinal", [])) if plant.get("medicinal") else "无"
@@ -220,7 +248,7 @@ with col_card2:
             label_visibility="collapsed"
         )
         if selected_plant:
-            plant = qa.get_plant_detail(selected_plant)
+            plant = qa.get_plant_detail(selected_plant)   # 使用传统系统获取详情
             if plant:
                 festivals = "、".join(plant.get("festivals", [])) if plant.get("festivals") else "无"
                 medicinal = "、".join(plant.get("medicinal", [])) if plant.get("medicinal") else "无"
