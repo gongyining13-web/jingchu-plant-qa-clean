@@ -329,10 +329,10 @@ class LangChainPlantQA:
             password=password or os.environ.get("NEO4J_PASSWORD"),
             database=self.database   # 关键：指定正确的数据库名
         )
-        # 初始化 Groq LLM
+        # 初始化 Groq LLM，使用可用的模型名称
         self.llm = ChatGroq(
             groq_api_key=groq_api_key or os.environ.get("GROQ_API_KEY"),
-            model_name="llama3-8b-8192",
+            model_name="llama-3.1-8b-instant",   # 更新为当前可用模型
             temperature=0
         )
 
